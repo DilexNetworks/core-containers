@@ -4,7 +4,7 @@
 
 FROM wyllie/ci-base:alpine3.23.2-1
 
-ARG HUGO_VERSION=0.154.2
+ARG HUGO_VERSION=0.161.1
 ARG DART_SASS_VERSION=1.97.1
 
 # Provided by BuildKit when building multi-arch (linux/amd64, linux/arm64)
