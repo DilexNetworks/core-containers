@@ -117,10 +117,10 @@ jobs:
 
           case "${{ matrix.image }}" in
             hugo)
-              TAGS="${DOCKERHUB_NS}/hugo:hugo${HUGO_VERSION}-sass${SASS_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${DOCKERHUB_NS}/hugo:main\n${GHCR_NS}/hugo:hugo${HUGO_VERSION}-sass${SASS_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${GHCR_NS}/hugo:main"
+              TAGS="${DOCKERHUB_NS}/hugo:hugo${HUGO_VERSION}-sass${SASS_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${DOCKERHUB_NS}/hugo:main\n${DOCKERHUB_NS}/hugo:latest\n${GHCR_NS}/hugo:hugo${HUGO_VERSION}-sass${SASS_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${GHCR_NS}/hugo:main\n${GHCR_NS}/hugo:latest"
               ;;
             aws-cli)
-              TAGS="${DOCKERHUB_NS}/aws-cli:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${DOCKERHUB_NS}/aws-cli:main\n${GHCR_NS}/aws-cli:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${GHCR_NS}/aws-cli:main"
+              TAGS="${DOCKERHUB_NS}/aws-cli:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${DOCKERHUB_NS}/aws-cli:main\n${DOCKERHUB_NS}/aws-cli:latest\n${GHCR_NS}/aws-cli:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${GHCR_NS}/aws-cli:main\n${GHCR_NS}/aws-cli:latest"
               ;;
             *)
               echo "Unknown matrix.image: ${{ matrix.image }}" >&2
@@ -183,8 +183,10 @@ jobs:
             echo 'tags<<EOF'
             echo "${DOCKERHUB_NS}/cdk:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}"
             echo "${DOCKERHUB_NS}/cdk:main"
+            echo "${DOCKERHUB_NS}/cdk:latest"
             echo "${GHCR_NS}/cdk:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}"
             echo "${GHCR_NS}/cdk:main"
+            echo "${GHCR_NS}/cdk:latest"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 

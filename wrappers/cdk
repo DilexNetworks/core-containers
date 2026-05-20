@@ -1,12 +1,34 @@
 #!/usr/bin/env bash
 set -e
 
+# Host directory where dxaws keeps its auth material.
+DXAWS_DIR="${DXAWS_DIR:-$HOME/.dxaws}"
+CONTAINER_DXAWS_DIR="/home/aws/.dxaws"
+
+# If the host has set AWS_*_FILE to a path under DXAWS_DIR, rewrite it to the
+# equivalent path inside the container.
+if [[ -n "${AWS_SHARED_CREDENTIALS_FILE:-}" && "${AWS_SHARED_CREDENTIALS_FILE}" == "${DXAWS_DIR}"/* ]]; then
+  AWS_SHARED_CREDENTIALS_FILE="${CONTAINER_DXAWS_DIR}${AWS_SHARED_CREDENTIALS_FILE#${DXAWS_DIR}}"
+fi
+
+if [[ -n "${AWS_CONFIG_FILE:-}" && "${AWS_CONFIG_FILE}" == "${DXAWS_DIR}"/* ]]; then
+  AWS_CONFIG_FILE="${CONTAINER_DXAWS_DIR}${AWS_CONFIG_FILE#${DXAWS_DIR}}"
+fi
+
 docker run --rm -it \
   -u "$(id -u):$(id -g)" \
+  -e HOME=/home/aws \
+  -e NPM_CONFIG_CACHE=/home/aws/.npm \
+  -e CDK_DISABLE_VERSION_CHECK=1 \
+  -e AWS_SDK_LOAD_CONFIG=1 \
+  -v "$HOME/.npm:/home/aws/.npm" \
   -e AWS_PROFILE \
   -e AWS_DEFAULT_REGION \
   -e AWS_REGION \
-  -v "$HOME/.aws:/home/aws/.aws" \
+  -e AWS_SHARED_CREDENTIALS_FILE \
+  -e AWS_CONFIG_FILE \
+  -e DXAWS_DIR \
+  -v "${DXAWS_DIR}:${CONTAINER_DXAWS_DIR}:ro" \
   -v "$PWD:/work" \
   -w /work \
   @@CDK_IMAGE@@ \
