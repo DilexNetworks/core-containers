@@ -1,7 +1,8 @@
 # wyllie/cdk
 # AWS CDK deployment image (Node + AWS CLI via base image)
 
-FROM wyllie/aws-cli:awscli2.32.7-alpine3.23.2-1
+ARG BASE_IMAGE=wyllie/aws-cli:awscli2.32.7-alpine3.23.2-1
+FROM ${BASE_IMAGE}
 
 ARG CDK_VER=2.1100.3
 

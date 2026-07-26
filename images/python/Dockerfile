@@ -1,4 +1,5 @@
-FROM wyllie/ci-base:alpine3.23.2-1
+ARG BASE_IMAGE=wyllie/ci-base:alpine3.23.2-1
+FROM ${BASE_IMAGE}
 
 RUN apk add --no-cache \
       python3 \
