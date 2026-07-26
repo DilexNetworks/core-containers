@@ -13,28 +13,42 @@ DEFAULT_VERSION ?= 0.1.0
 # - Set DRY_RUN=1 to preview commands without changing anything
 DRY_RUN ?= 0
 
+# Shared image versions
+ALPINE_VERSION := 3.24.1
+HUGO_VERSION := 0.161.1
+SASS_VERSION := 1.97.1
+AWSCLI_VERSION := 2.34.63
+WORK_VERSION := 0.2.0
+AWSCLI_PACKAGE_VERSION := $(AWSCLI_VERSION)-r0
+
 # Image tags (single source of truth)
-HUGO_IMAGE := wyllie/hugo:hugo0.154.2-sass1.97.1-alpine3.23.2-1
-AWS_IMAGE := wyllie/aws-cli:awscli2.32.7-alpine3.23.2-1
-CDK_IMAGE := wyllie/cdk:awscli2.32.7-alpine3.23.2-1
-CI_BASE_IMAGE := wyllie/ci-base:alpine3.23.2-1
-LATEX_IMAGE := wyllie/latex:alpine3.23.2-texlive-1
+CI_BASE_IMAGE := wyllie/ci-base:alpine$(ALPINE_VERSION)-1
+HUGO_IMAGE := wyllie/hugo:hugo$(HUGO_VERSION)-sass$(SASS_VERSION)-alpine$(ALPINE_VERSION)-1
+AWS_IMAGE := wyllie/aws-cli:awscli$(AWSCLI_VERSION)-alpine$(ALPINE_VERSION)-1
+CDK_IMAGE := wyllie/cdk:awscli$(AWSCLI_VERSION)-alpine$(ALPINE_VERSION)-1
+PYTHON_IMAGE := wyllie/python:python3-alpine$(ALPINE_VERSION)-1
+WORK_IMAGE := wyllie/work:work$(WORK_VERSION)-python3-alpine$(ALPINE_VERSION)-1
+LATEX_IMAGE := wyllie/latex:alpine$(ALPINE_VERSION)-texlive-1
 
 # Local test tags (for fast iteration without waiting on GitHub Actions)
 CI_BASE_LOCAL := wyllie/ci-base:local
+PYTHON_LOCAL := wyllie/python:local
+WORK_LOCAL := wyllie/work:local
 HUGO_LOCAL := wyllie/hugo:local
 AWS_LOCAL := wyllie/aws-cli:local
 CDK_LOCAL := wyllie/cdk:local
 LATEX_LOCAL := wyllie/latex:local
 
-# Docker build platforms (used only by buildx targets)
+# Docker build platforms
+LOCAL_PLATFORM ?= linux/arm64
 PLATFORMS ?= linux/amd64,linux/arm64
 
 .PHONY: install uninstall check-bin \
-	build-ci-base build-hugo build-aws build-cdk build-latex \
-	build-all buildx-ci-base buildx-hugo buildx-aws buildx-cdk buildx-latex \
-	smoke-hugo smoke-aws smoke-cdk \
-	pull-published pull-ci-base pull-hugo pull-aws pull-cdk pull-latex images-info \
+	build-ci-base build-python build-work build-hugo build-aws build-cdk build-latex \
+	build-all buildx-ci-base buildx-python buildx-work buildx-hugo buildx-aws buildx-cdk buildx-latex \
+	publish-ci-base publish-python publish-work publish-hugo publish-aws publish-cdk publish-latex publish-all \
+	smoke-python smoke-work smoke-hugo smoke-aws smoke-cdk \
+	pull-published pull-ci-base pull-python pull-work pull-hugo pull-aws pull-cdk pull-latex images-info \
 	version-init version-show version-set bump-version release commit-release tag-release push-release gh-release help
 
 check-bin:
@@ -45,12 +59,13 @@ install: check-bin
 	@sed "s|@@HUGO_IMAGE@@|$(HUGO_IMAGE)|g" $(WRAPPER_DIR)/hugo > $(BIN_DIR)/hugo
 	@sed "s|@@AWS_IMAGE@@|$(AWS_IMAGE)|g" $(WRAPPER_DIR)/aws > $(BIN_DIR)/aws
 	@sed "s|@@CDK_IMAGE@@|$(CDK_IMAGE)|g" $(WRAPPER_DIR)/cdk > $(BIN_DIR)/cdk
-	@chmod +x $(BIN_DIR)/hugo $(BIN_DIR)/aws $(BIN_DIR)/cdk
-	@echo "✔ Installed: hugo, aws, cdk"
+	@sed "s|@@WORK_IMAGE@@|$(WORK_IMAGE)|g" $(WRAPPER_DIR)/work > $(BIN_DIR)/work
+	@chmod +x $(BIN_DIR)/hugo $(BIN_DIR)/aws $(BIN_DIR)/cdk $(BIN_DIR)/work
+	@echo "✔ Installed: hugo, aws, cdk, work"
 
 uninstall:
 	@echo "Removing docker-backed CLI wrappers from $(BIN_DIR)"
-	@rm -f $(BIN_DIR)/hugo $(BIN_DIR)/aws $(BIN_DIR)/cdk
+	@rm -f $(BIN_DIR)/hugo $(BIN_DIR)/aws $(BIN_DIR)/cdk $(BIN_DIR)/work
 	@echo "✔ Removed"
 
 
@@ -59,49 +74,202 @@ uninstall:
 # -----------------------------
 
 build-ci-base:
-	docker build -t $(CI_BASE_LOCAL) images/ci-base
+	docker build \
+		--build-arg BASE_IMAGE=alpine:$(ALPINE_VERSION) \
+		-t $(CI_BASE_LOCAL) \
+		images/ci-base
+
+build-python: build-ci-base
+	docker build \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		-t $(PYTHON_LOCAL) \
+		images/python
+
+build-work: build-python
+	docker build \
+		--ssh default \
+		--build-arg BASE_IMAGE=$(PYTHON_LOCAL) \
+		--build-arg WORK_VERSION=$(WORK_VERSION) \
+		-t $(WORK_LOCAL) \
+		images/work
 
 build-hugo: build-ci-base
-	docker build -t $(HUGO_LOCAL) images/hugo
+	docker build \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		--build-arg HUGO_VERSION=$(HUGO_VERSION) \
+		--build-arg DART_SASS_VERSION=$(SASS_VERSION) \
+		-t $(HUGO_LOCAL) \
+		images/hugo
 
 build-aws: build-ci-base
-	docker build -t $(AWS_LOCAL) images/aws-cli
+	docker build \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		--build-arg AWSCLI_VERSION=$(AWSCLI_PACKAGE_VERSION) \
+		-t $(AWS_LOCAL) \
+		images/aws-cli
 
 build-cdk: build-aws
-	docker build -t $(CDK_LOCAL) images/cdk
+	docker build \
+		--build-arg BASE_IMAGE=$(AWS_LOCAL) \
+		-t $(CDK_LOCAL) \
+		images/cdk
 
 build-latex: build-ci-base
-	docker build -t $(LATEX_LOCAL) images/latex
+	docker build \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		-t $(LATEX_LOCAL) \
+		images/latex
 
-build-all: build-ci-base build-hugo build-aws build-cdk
+build-all: build-ci-base build-python build-work build-hugo build-aws build-cdk
 
 
 # -----------------------------
-# Local buildx targets (multi-arch, closer to CI)
-# Notes:
-# - `--load` can only load one arch into the local docker engine; buildx will still validate both.
-# - Use `--push` to publish multi-arch manifests.
+# Local buildx targets (single-platform, loadable)
 # -----------------------------
 
 buildx-ci-base:
-	docker buildx build --platform $(PLATFORMS) -t $(CI_BASE_LOCAL) --load images/ci-base
+	docker buildx build \
+		--platform $(LOCAL_PLATFORM) \
+		--build-arg BASE_IMAGE=alpine:$(ALPINE_VERSION) \
+		-t $(CI_BASE_LOCAL) \
+		--load \
+		images/ci-base
+
+buildx-python: buildx-ci-base
+	docker buildx build \
+		--platform $(LOCAL_PLATFORM) \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		-t $(PYTHON_LOCAL) \
+		--load \
+		images/python
+
+buildx-work: buildx-python
+	docker buildx build \
+		--ssh default \
+		--platform $(LOCAL_PLATFORM) \
+		--build-arg BASE_IMAGE=$(PYTHON_LOCAL) \
+		--build-arg WORK_VERSION=$(WORK_VERSION) \
+		-t $(WORK_LOCAL) \
+		--load \
+		images/work
 
 buildx-hugo: buildx-ci-base
-	docker buildx build --platform $(PLATFORMS) -t $(HUGO_LOCAL) --load images/hugo
+	docker buildx build \
+		--platform $(LOCAL_PLATFORM) \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		--build-arg HUGO_VERSION=$(HUGO_VERSION) \
+		--build-arg DART_SASS_VERSION=$(SASS_VERSION) \
+		-t $(HUGO_LOCAL) \
+		--load \
+		images/hugo
 
 buildx-aws: buildx-ci-base
-	docker buildx build --platform $(PLATFORMS) -t $(AWS_LOCAL) --load images/aws-cli
+	docker buildx build \
+		--platform $(LOCAL_PLATFORM) \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		--build-arg AWSCLI_VERSION=$(AWSCLI_PACKAGE_VERSION) \
+		-t $(AWS_LOCAL) \
+		--load \
+		images/aws-cli
 
 buildx-cdk: buildx-aws
-	docker buildx build --platform $(PLATFORMS) -t $(CDK_LOCAL) --load images/cdk
+	docker buildx build \
+		--platform $(LOCAL_PLATFORM) \
+		--build-arg BASE_IMAGE=$(AWS_LOCAL) \
+		-t $(CDK_LOCAL) \
+		--load \
+		images/cdk
 
 buildx-latex: buildx-ci-base
-	docker buildx build --platform $(PLATFORMS) -t $(LATEX_LOCAL) --load images/latex
+	docker buildx build \
+		--platform $(LOCAL_PLATFORM) \
+		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
+		-t $(LATEX_LOCAL) \
+		--load \
+		images/latex
+
+buildx-all: buildx-ci-base buildx-python buildx-work buildx-hugo buildx-aws buildx-cdk
+
+
+# -----------------------------
+# Multi-platform publish targets
+# -----------------------------
+
+publish-ci-base:
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=alpine:$(ALPINE_VERSION) \
+		-t $(CI_BASE_IMAGE) \
+		--push \
+		images/ci-base
+
+publish-python: publish-ci-base
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(CI_BASE_IMAGE) \
+		-t $(PYTHON_IMAGE) \
+		--push \
+		images/python
+
+publish-work: publish-python
+	docker buildx build \
+		--ssh default \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(PYTHON_IMAGE) \
+		--build-arg WORK_VERSION=$(WORK_VERSION) \
+		-t $(WORK_IMAGE) \
+		--push \
+		images/work
+
+publish-hugo: publish-ci-base
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(CI_BASE_IMAGE) \
+		--build-arg HUGO_VERSION=$(HUGO_VERSION) \
+		--build-arg DART_SASS_VERSION=$(SASS_VERSION) \
+		-t $(HUGO_IMAGE) \
+		--push \
+		images/hugo
+
+publish-aws: publish-ci-base
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(CI_BASE_IMAGE) \
+		--build-arg AWSCLI_VERSION=$(AWSCLI_PACKAGE_VERSION) \
+		-t $(AWS_IMAGE) \
+		--push \
+		images/aws-cli
+
+publish-cdk: publish-aws
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(AWS_IMAGE) \
+		-t $(CDK_IMAGE) \
+		--push \
+		images/cdk
+
+publish-latex: publish-ci-base
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg BASE_IMAGE=$(CI_BASE_IMAGE) \
+		-t $(LATEX_IMAGE) \
+		--push \
+		images/latex
+
+publish-all: publish-ci-base publish-python publish-work publish-hugo publish-aws publish-cdk publish-latex
 
 
 # -----------------------------
 # Smoke tests (run local tags)
 # -----------------------------
+
+smoke-python: build-python
+	docker run --rm $(PYTHON_LOCAL) uname -a
+	docker run --rm $(PYTHON_LOCAL) python --version
+	docker run --rm $(PYTHON_LOCAL) pip --version
+
+smoke-work: build-work
+	docker run --rm $(WORK_LOCAL) --help
 
 smoke-hugo: build-hugo
 	docker run --rm $(HUGO_LOCAL) hugo version
@@ -121,13 +289,23 @@ smoke-cdk: build-cdk
 
 images-info:
 	@echo "Published images (wrappers use these):"
+	@echo "  alpine    : $(ALPINE_VERSION)"
+	@echo "  aws-cli   : $(AWSCLI_VERSION)"
 	@echo "  ci-base   : $(CI_BASE_IMAGE)"
+	@echo "  python    : $(PYTHON_IMAGE)"
+	@echo "  work      : $(WORK_IMAGE)"
 	@echo "  hugo      : $(HUGO_IMAGE)"
 	@echo "  aws-cli   : $(AWS_IMAGE)"
 	@echo "  cdk       : $(CDK_IMAGE)"
 
 pull-ci-base:
 	docker pull $(CI_BASE_IMAGE)
+
+pull-python:
+	docker pull $(PYTHON_IMAGE)
+
+pull-work:
+	docker pull $(WORK_IMAGE)
 
 pull-hugo:
 	docker pull $(HUGO_IMAGE)
@@ -141,7 +319,7 @@ pull-cdk:
 pull-latex:
 	docker pull $(LATEX_IMAGE)
 
-pull-published: pull-ci-base pull-hugo pull-aws pull-cdk pull-latex
+pull-published: pull-ci-base pull-python pull-work pull-hugo pull-aws pull-cdk pull-latex
 	@echo "✔ Pulled published images"
 
 
@@ -249,20 +427,37 @@ help:
 	@echo ""
 	@echo "Local builds (fast, single-arch):"
 	@echo "  build-ci-base     Build ci-base locally"
+	@echo "  build-python      Build python locally"
+	@echo "  build-work        Build work locally"
 	@echo "  build-hugo        Build hugo locally"
 	@echo "  build-aws         Build aws-cli locally"
 	@echo "  build-cdk         Build cdk locally"
 	@echo "  build-latex       Build latex locally"
-	@echo "  build-all         Build ci-base, hugo, aws-cli, cdk"
+	@echo "  build-all         Build all local images"
 	@echo ""
-	@echo "Local multi-arch builds (buildx, closer to CI):"
+	@echo "Local buildx builds (single-platform, loadable):"
 	@echo "  buildx-ci-base"
+	@echo "  buildx-python"
+	@echo "  buildx-work"
 	@echo "  buildx-hugo"
 	@echo "  buildx-aws"
 	@echo "  buildx-cdk"
 	@echo "  buildx-latex"
+	@echo "  buildx-all"
+	@echo ""
+	@echo "Multi-platform publish targets:"
+	@echo "  publish-ci-base"
+	@echo "  publish-python"
+	@echo "  publish-work"
+	@echo "  publish-hugo"
+	@echo "  publish-aws"
+	@echo "  publish-cdk"
+	@echo "  publish-latex"
+	@echo "  publish-all"
 	@echo ""
 	@echo "Smoke tests:"
+	@echo "  smoke-python      Run python + pip sanity checks"
+	@echo "  smoke-work        Run work CLI sanity check"
 	@echo "  smoke-hugo        Run hugo + sass sanity checks"
 	@echo "  smoke-aws         Run aws-cli sanity checks"
 	@echo "  smoke-cdk         Run cdk + aws sanity checks"
@@ -270,9 +465,11 @@ help:
 	@echo "Published images:"
 	@echo "  images-info       Show pinned published image tags"
 	@echo "  pull-published    Pull all published images"
+	@echo "  pull-python"
 	@echo "  pull-hugo"
 	@echo "  pull-aws"
 	@echo "  pull-cdk"
+	@echo "  pull-work"
 	@echo "  pull-latex"
 	@echo ""
 	@echo "Versioning / Release:"
@@ -284,5 +481,7 @@ help:
 	@echo ""
 	@echo "Notes:"
 	@echo "  - Local images are tagged as :local and never pushed"
+	@echo "  - LOCAL_PLATFORM controls loadable buildx builds"
+	@echo "  - PLATFORMS controls multi-platform publish builds"
 	@echo "  - Published images are multi-arch and pinned"
 	@echo ""

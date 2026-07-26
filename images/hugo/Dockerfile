@@ -2,7 +2,8 @@
 # Hugo Extended + Dart Sass (standalone) for building Hugo sites (e.g., GitHub Pages docs).
 # Intentionally avoids installing Node by using the standalone Dart Sass CLI.
 
-FROM wyllie/ci-base:alpine3.23.2-1
+ARG BASE_IMAGE=wyllie/ci-base:alpine3.23.2-1
+FROM ${BASE_IMAGE}
 
 ARG HUGO_VERSION=0.161.1
 ARG DART_SASS_VERSION=1.97.1

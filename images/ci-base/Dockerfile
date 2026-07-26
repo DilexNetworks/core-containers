@@ -4,7 +4,7 @@
 # Minimal, reproducible CI foundation for derived images.
 # Includes: bash, ca-certificates (TLS trust), git, and full-featured tar.
 
-FROM alpine:3.23.2
+FROM alpine:3.24.1
 
 # Core CI tools
 RUN apk add --no-cache \

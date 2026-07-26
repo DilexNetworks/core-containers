@@ -1,12 +1,19 @@
-FROM alpine:latest
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
-RUN apk add make texlive-full texlive-dev texlive-luatex texlive-xetex git
+RUN apk add --no-cache \
+    make \
+    perl \
+    texlive \
+    texlive-binextra \
+    texlive-latexrecommended \
+    texlive-latexextra \
+    texlive-xetex
 
-# Add a beamer theme
-RUN cd /tmp && \
-    git clone https://github.com/matze/mtheme && \
-    cd mtheme && \
-    make sty install 
+# Add the Metropolis Beamer theme.
+#RUN git clone --depth 1 https://github.com/matze/mtheme /tmp/mtheme \
+#    && make -C /tmp/mtheme sty install \
+#    && rm -rf /tmp/mtheme
 
 WORKDIR /files
-ENTRYPOINT ["sh", "-c", "exec /usr/bin/latexmk -pdf $1"]
+ENTRYPOINT ["/usr/bin/latexmk", "-pdf"]
