@@ -19,7 +19,6 @@ HUGO_VERSION := 0.161.1
 SASS_VERSION := 1.97.1
 AWSCLI_VERSION := 2.34.63
 WORK_VERSION := 0.2.0
-AWSCLI_PACKAGE_VERSION := $(AWSCLI_VERSION)-r0
 
 # Image tags (single source of truth)
 CI_BASE_IMAGE := wyllie/ci-base:alpine$(ALPINE_VERSION)-1
@@ -104,7 +103,6 @@ build-hugo: build-ci-base
 build-aws: build-ci-base
 	docker build \
 		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
-		--build-arg AWSCLI_VERSION=$(AWSCLI_PACKAGE_VERSION) \
 		-t $(AWS_LOCAL) \
 		images/aws-cli
 
@@ -167,7 +165,6 @@ buildx-aws: buildx-ci-base
 	docker buildx build \
 		--platform $(LOCAL_PLATFORM) \
 		--build-arg BASE_IMAGE=$(CI_BASE_LOCAL) \
-		--build-arg AWSCLI_VERSION=$(AWSCLI_PACKAGE_VERSION) \
 		-t $(AWS_LOCAL) \
 		--load \
 		images/aws-cli
@@ -235,7 +232,6 @@ publish-aws: publish-ci-base
 	docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg BASE_IMAGE=$(CI_BASE_IMAGE) \
-		--build-arg AWSCLI_VERSION=$(AWSCLI_PACKAGE_VERSION) \
 		-t $(AWS_IMAGE) \
 		--push \
 		images/aws-cli
