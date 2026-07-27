@@ -13,21 +13,25 @@ DEFAULT_VERSION ?= 0.1.0
 # - Set DRY_RUN=1 to preview commands without changing anything
 DRY_RUN ?= 0
 
-# Shared image versions
+# Shared image versions and registry settings
 ALPINE_VERSION := 3.24.1
+BASE_REV := 1
 HUGO_VERSION := 0.161.1
 SASS_VERSION := 1.97.1
 AWSCLI_VERSION := 2.34.63
 WORK_VERSION := 0.2.0
 
+DOCKERHUB_NS := wyllie
+GHCR_NS := ghcr.io/dilexnetworks
+
 # Image tags (single source of truth)
-CI_BASE_IMAGE := wyllie/ci-base:alpine$(ALPINE_VERSION)-1
-HUGO_IMAGE := wyllie/hugo:hugo$(HUGO_VERSION)-sass$(SASS_VERSION)-alpine$(ALPINE_VERSION)-1
-AWS_IMAGE := wyllie/aws-cli:awscli$(AWSCLI_VERSION)-alpine$(ALPINE_VERSION)-1
-CDK_IMAGE := wyllie/cdk:awscli$(AWSCLI_VERSION)-alpine$(ALPINE_VERSION)-1
-PYTHON_IMAGE := wyllie/python:python3-alpine$(ALPINE_VERSION)-1
-WORK_IMAGE := wyllie/work:work$(WORK_VERSION)-python3-alpine$(ALPINE_VERSION)-1
-LATEX_IMAGE := wyllie/latex:alpine$(ALPINE_VERSION)-texlive-1
+CI_BASE_IMAGE := $(DOCKERHUB_NS)/ci-base:alpine$(ALPINE_VERSION)-$(BASE_REV)
+HUGO_IMAGE := $(DOCKERHUB_NS)/hugo:hugo$(HUGO_VERSION)-sass$(SASS_VERSION)-alpine$(ALPINE_VERSION)-$(BASE_REV)
+AWS_IMAGE := $(DOCKERHUB_NS)/aws-cli:awscli$(AWSCLI_VERSION)-alpine$(ALPINE_VERSION)-$(BASE_REV)
+CDK_IMAGE := $(DOCKERHUB_NS)/cdk:awscli$(AWSCLI_VERSION)-alpine$(ALPINE_VERSION)-$(BASE_REV)
+PYTHON_IMAGE := $(DOCKERHUB_NS)/python:python3-alpine$(ALPINE_VERSION)-$(BASE_REV)
+WORK_IMAGE := $(DOCKERHUB_NS)/work:work$(WORK_VERSION)-python3-alpine$(ALPINE_VERSION)-$(BASE_REV)
+LATEX_IMAGE := $(DOCKERHUB_NS)/latex:alpine$(ALPINE_VERSION)-texlive-$(BASE_REV)
 
 # Local test tags (for fast iteration without waiting on GitHub Actions)
 CI_BASE_LOCAL := wyllie/ci-base:local
@@ -47,7 +51,8 @@ PLATFORMS ?= linux/amd64,linux/arm64
 	build-all buildx-ci-base buildx-python buildx-work buildx-hugo buildx-aws buildx-cdk buildx-latex \
 	publish-ci-base publish-python publish-work publish-hugo publish-aws publish-cdk publish-latex publish-all \
 	smoke-python smoke-work smoke-hugo smoke-aws smoke-cdk \
-	pull-published pull-ci-base pull-python pull-work pull-hugo pull-aws pull-cdk pull-latex images-info \
+	pull-published pull-ci-base pull-python pull-work pull-hugo pull-aws pull-cdk pull-latex \
+	images-info github-actions-env \
 	version-init version-show version-set bump-version release commit-release tag-release push-release gh-release help
 
 check-bin:
@@ -293,6 +298,24 @@ images-info:
 	@echo "  hugo      : $(HUGO_IMAGE)"
 	@echo "  aws-cli   : $(AWS_IMAGE)"
 	@echo "  cdk       : $(CDK_IMAGE)"
+
+# Export the Makefile's image metadata in GitHub Actions environment-file format.
+# Usage from a workflow step:
+#     make -s github-actions-env >> "$$GITHUB_ENV"
+github-actions-env:
+	@echo "ALPINE_VERSION=$(ALPINE_VERSION)"
+	@echo "BASE_REV=$(BASE_REV)"
+	@echo "HUGO_VERSION=$(HUGO_VERSION)"
+	@echo "SASS_VERSION=$(SASS_VERSION)"
+	@echo "AWSCLI_VERSION=$(AWSCLI_VERSION)"
+	@echo "WORK_VERSION=$(WORK_VERSION)"
+	@echo "DOCKERHUB_NS=$(DOCKERHUB_NS)"
+	@echo "GHCR_NS=$(GHCR_NS)"
+	@echo "CI_BASE_IMAGE=$(CI_BASE_IMAGE)"
+	@echo "HUGO_IMAGE=$(HUGO_IMAGE)"
+	@echo "AWS_IMAGE=$(AWS_IMAGE)"
+	@echo "CDK_IMAGE=$(CDK_IMAGE)"
+	@echo "LATEX_IMAGE=$(LATEX_IMAGE)"
 
 pull-ci-base:
 	docker pull $(CI_BASE_IMAGE)

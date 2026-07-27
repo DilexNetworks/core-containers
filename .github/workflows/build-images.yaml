@@ -4,20 +4,6 @@ on:
   release:
     types: [published]
 
-# Central “tag knobs”
-env:
-  ALPINE_VERSION: "3.23.2"
-  BASE_REV: "1"
-  AWSCLI_VERSION: "2.32.7"
-
-  # Registry namespaces
-  DOCKERHUB_NS: "wyllie"
-  GHCR_NS: "ghcr.io/dilexnetworks"
-
-  # For tagging clarity (build args are set in Dockerfiles too)
-  HUGO_VERSION: "0.154.2"
-  SASS_VERSION: "1.97.1"
-
 concurrency:
   group: docker-images-${{ github.ref }}
   cancel-in-progress: true
@@ -33,6 +19,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Load image metadata
+        shell: bash
+        run: make -s github-actions-env >> "$GITHUB_ENV"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -58,6 +48,8 @@ jobs:
         with:
           context: ./images/ci-base
           file: ./images/ci-base/Dockerfile
+          build-args: |
+            BASE_IMAGE=alpine:${{ env.ALPINE_VERSION }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
@@ -90,6 +82,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Load image metadata
+        shell: bash
+        run: make -s github-actions-env >> "$GITHUB_ENV"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
 
@@ -117,9 +113,11 @@ jobs:
 
           case "${{ matrix.image }}" in
             hugo)
+              BUILD_ARGS="BASE_IMAGE=${CI_BASE_IMAGE}\nHUGO_VERSION=${HUGO_VERSION}\nDART_SASS_VERSION=${SASS_VERSION}"
               TAGS="${DOCKERHUB_NS}/hugo:hugo${HUGO_VERSION}-sass${SASS_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${DOCKERHUB_NS}/hugo:main\n${DOCKERHUB_NS}/hugo:latest\n${GHCR_NS}/hugo:hugo${HUGO_VERSION}-sass${SASS_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${GHCR_NS}/hugo:main\n${GHCR_NS}/hugo:latest"
               ;;
             aws-cli)
+              BUILD_ARGS="BASE_IMAGE=${CI_BASE_IMAGE}"
               TAGS="${DOCKERHUB_NS}/aws-cli:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${DOCKERHUB_NS}/aws-cli:main\n${DOCKERHUB_NS}/aws-cli:latest\n${GHCR_NS}/aws-cli:awscli${AWSCLI_VERSION}-alpine${ALPINE_VERSION}-${BASE_REV}\n${GHCR_NS}/aws-cli:main\n${GHCR_NS}/aws-cli:latest"
               ;;
             *)
@@ -132,6 +130,9 @@ jobs:
             echo 'tags<<EOF'
             echo -e "$TAGS"
             echo 'EOF'
+            echo 'build-args<<EOF'
+            echo -e "$BUILD_ARGS"
+            echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
       - name: Build and push
@@ -139,6 +140,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          build-args: ${{ steps.tags.outputs.build-args }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
@@ -154,6 +156,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Load image metadata
+        shell: bash
+        run: make -s github-actions-env >> "$GITHUB_ENV"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -195,6 +201,8 @@ jobs:
         with:
           context: ./images/cdk
           file: ./images/cdk/Dockerfile
+          build-args: |
+            BASE_IMAGE=${{ env.AWS_IMAGE }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
@@ -213,6 +221,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Load image metadata
+        shell: bash
+        run: make -s github-actions-env >> "$GITHUB_ENV"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -252,6 +264,8 @@ jobs:
         with:
           context: ./images/latex
           file: ./images/latex/Dockerfile
+          build-args: |
+            BASE_IMAGE=${{ env.CI_BASE_IMAGE }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
