@@ -27,6 +27,8 @@ The images in this repository form a deliberate dependency tree:
 
 ```
 ci-base
+├── python
+│   └── work
 ├── hugo
 ├── aws-cli
 │   └── cdk
@@ -55,6 +57,7 @@ Currently included:
 - `bash`
 - `ca-certificates`
 - `git`
+- `openssh-client`
 - `tar` (full tar, not BusyBox)
 
 ### What does *not* belong here
@@ -65,6 +68,45 @@ Currently included:
 - Compatibility shims unless broadly required
 
 The guiding rule is: **if it’s not needed by *most* images, it doesn’t go here**.
+
+---
+
+## Python image: `python`
+
+The `python` image provides the shared Python runtime used by Python-based tools.
+
+### Included tooling
+
+- Python 3
+- `pip`
+- `virtualenv`
+- A dedicated virtual environment at `/opt/venv`
+
+### Inheritance
+
+- Inherits common command-line tooling from `ci-base`
+- Provides the base for Python applications such as `work`
+
+Keeping the Python runtime in its own image avoids adding a language runtime to every container while still allowing Python-based tools to share a consistent foundation.
+
+---
+
+## Work image: `work`
+
+The `work` image packages the `core-work` command-line application as a Docker-backed development tool.
+
+### Included tooling
+
+- The pinned `core-work` release
+- Python and the virtual environment inherited from `python`
+- Git and OpenSSH inherited from `ci-base`
+
+### Inheritance
+
+- Inherits from `python`
+- Uses `ci-base` indirectly through the Python image
+
+The image contains the application and its runtime. Integration with the host working directory, Git configuration, and SSH agent is handled by the installed `work` wrapper.
 
 ---
 
@@ -173,8 +215,8 @@ This keeps the primary pipeline fast and reliable.
 Image dependencies are respected explicitly in CI:
 
 1. `ci-base`
-2. `hugo` and `aws-cli`
-3. `cdk` (depends on `aws-cli`)
+2. `python`, `hugo`, and `aws-cli`
+3. `work` (depends on `python`) and `cdk` (depends on `aws-cli`)
 
 This prevents race conditions where a derived image is built before its base image is published.
 
@@ -207,15 +249,53 @@ Instead of installing tools locally, lightweight shell wrappers are installed in
 These wrappers:
 
 - Invoke the appropriate Docker image
-- Mount the working directory
-- Preserve user UID/GID
-- Forward arguments transparently
+- Mount the current working directory at `/work`
+- Set the container working directory to `/work`
+- Set `HOME=/tmp` for ephemeral container state
+- Mount the host Git configuration read-only when available
+- Forward the host SSH agent when available
+- Forward command-line arguments transparently
 
 This ensures:
 
 - Clean local machines
 - Consistent behavior across environments
 - Easy upgrades by pulling new images
+- No private SSH keys copied or mounted into containers
+
+### Git and SSH integration
+
+Git operations over SSH use agent forwarding rather than mounting the host `~/.ssh` directory.
+
+The wrapper mounts the host SSH agent socket and exposes it through `SSH_AUTH_SOCK` inside the container. Authentication therefore remains on the host, and private key files are never made available to the container.
+
+GitHub remotes normally include the SSH user explicitly:
+
+```text
+git@github.com:DilexNetworks/core-containers.git
+```
+
+Because the remote URL already specifies `git` as the user, the container does not require the host SSH configuration merely to provide `User git`.
+
+Host-key state is written to an ephemeral file inside the container. The wrapper configures SSH with a temporary `UserKnownHostsFile` and `StrictHostKeyChecking=accept-new`.
+
+This avoids:
+
+- Mounting the complete host `~/.ssh` directory
+- Giving the container access to private key files
+- Making the host `known_hosts` file writable
+
+### Container user model
+
+The wrappers intentionally do not force containers to run with the host macOS UID and GID.
+
+Passing a macOS UID such as `501` into an Alpine container may leave the process without a corresponding passwd entry. OpenSSH relies on that user lookup and can fail with:
+
+```text
+No user exists for uid 501
+```
+
+The containers therefore run as their image-defined user. Docker Desktop mediates bind-mounted file access on macOS, so explicit host UID/GID preservation is unnecessary for this workflow.
 
 ---
 
