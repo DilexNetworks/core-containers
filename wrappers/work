@@ -5,8 +5,8 @@ docker_args=(
   run
   --rm
   -it
-  -u "$(id -u):$(id -g)"
   -e HOME=/tmp
+  -e GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/tmp/known_hosts -o StrictHostKeyChecking=accept-new"
   -v "$PWD:/work"
   -w /work
 )
@@ -17,9 +17,10 @@ if [ -f "$HOME/.gitconfig" ]; then
   )
 fi
 
-if [ -d "$HOME/.ssh" ]; then
+if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "$SSH_AUTH_SOCK" ]; then
   docker_args+=(
-    -v "$HOME/.ssh:/tmp/.ssh:ro"
+    -v "$SSH_AUTH_SOCK:/ssh-agent"
+    -e SSH_AUTH_SOCK=/ssh-agent
   )
 fi
 
