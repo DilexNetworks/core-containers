@@ -91,7 +91,6 @@ build-python: build-ci-base
 
 build-work: build-python
 	docker build \
-		--ssh default \
 		--build-arg BASE_IMAGE=$(PYTHON_LOCAL) \
 		--build-arg WORK_VERSION=$(WORK_VERSION) \
 		-t $(WORK_LOCAL) \
@@ -148,7 +147,6 @@ buildx-python: buildx-ci-base
 
 buildx-work: buildx-python
 	docker buildx build \
-		--ssh default \
 		--platform $(LOCAL_PLATFORM) \
 		--build-arg BASE_IMAGE=$(PYTHON_LOCAL) \
 		--build-arg WORK_VERSION=$(WORK_VERSION) \
@@ -215,7 +213,6 @@ publish-python: publish-ci-base
 
 publish-work: publish-python
 	docker buildx build \
-		--ssh default \
 		--platform $(PLATFORMS) \
 		--build-arg BASE_IMAGE=$(PYTHON_IMAGE) \
 		--build-arg WORK_VERSION=$(WORK_VERSION) \
@@ -312,6 +309,8 @@ github-actions-env:
 	@echo "DOCKERHUB_NS=$(DOCKERHUB_NS)"
 	@echo "GHCR_NS=$(GHCR_NS)"
 	@echo "CI_BASE_IMAGE=$(CI_BASE_IMAGE)"
+	@echo "PYTHON_IMAGE=$(PYTHON_IMAGE)"
+	@echo "WORK_IMAGE=$(WORK_IMAGE)"
 	@echo "HUGO_IMAGE=$(HUGO_IMAGE)"
 	@echo "AWS_IMAGE=$(AWS_IMAGE)"
 	@echo "CDK_IMAGE=$(CDK_IMAGE)"

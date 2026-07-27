@@ -58,6 +58,111 @@ jobs:
             ${{ env.GHCR_NS }}/ci-base:alpine${{ env.ALPINE_VERSION }}-${{ env.BASE_REV }}
             ${{ env.GHCR_NS }}/ci-base:main
 
+  build-python:
+    name: Build python
+    runs-on: ubuntu-latest
+    needs: build-ci-base
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Load image metadata
+        shell: bash
+        run: make -s github-actions-env >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./images/python
+          file: ./images/python/Dockerfile
+          build-args: |
+            BASE_IMAGE=${{ env.CI_BASE_IMAGE }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.PYTHON_IMAGE }}
+            ${{ env.DOCKERHUB_NS }}/python:main
+            ${{ env.DOCKERHUB_NS }}/python:latest
+            ${{ env.GHCR_NS }}/python:python3-alpine${{ env.ALPINE_VERSION }}-${{ env.BASE_REV }}
+            ${{ env.GHCR_NS }}/python:main
+            ${{ env.GHCR_NS }}/python:latest
+
+  build-work:
+    name: Build work
+    runs-on: ubuntu-latest
+    needs: build-python
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Load image metadata
+        shell: bash
+        run: make -s github-actions-env >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./images/work
+          file: ./images/work/Dockerfile
+          build-args: |
+            BASE_IMAGE=${{ env.PYTHON_IMAGE }}
+            WORK_VERSION=${{ env.WORK_VERSION }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.WORK_IMAGE }}
+            ${{ env.DOCKERHUB_NS }}/work:main
+            ${{ env.DOCKERHUB_NS }}/work:latest
+            ${{ env.GHCR_NS }}/work:work${{ env.WORK_VERSION }}-python3-alpine${{ env.ALPINE_VERSION }}-${{ env.BASE_REV }}
+            ${{ env.GHCR_NS }}/work:main
+            ${{ env.GHCR_NS }}/work:latest
+
   build-stage1:
     name: Build stage1 ${{ matrix.image }}
     runs-on: ubuntu-latest
