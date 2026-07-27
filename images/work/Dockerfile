@@ -6,7 +6,7 @@ FROM ${BASE_IMAGE}
 ARG WORK_VERSION
 
 RUN pip install --no-cache-dir \
-    "git+https://github.com/Syntelliga/core-work.git@v${WORK_VERSION}"
+    "git+https://github.com/DilexNetworks/core-work.git@v${WORK_VERSION}"
 
 WORKDIR /work
 
