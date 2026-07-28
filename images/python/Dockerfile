@@ -13,7 +13,8 @@ RUN python3 -m venv "${VIRTUAL_ENV}" \
     && pip install --no-cache-dir --upgrade pip \
         && pip install --no-cache-dir \
          pytest \
-         ruff
+         ruff \
+         uv
 
 WORKDIR /work
 
