@@ -1,6 +1,50 @@
 #!/usr/bin/env bash
 set -e
 
+if [ "${1:-}" = "agent" ]; then
+  provider="${2:-codex}"
+
+  if [ "$#" -gt 2 ]; then
+    echo "usage: work agent [provider]" >&2
+    exit 2
+  fi
+
+  if ! command -v "$provider" >/dev/null 2>&1; then
+    echo "work: Agent provider '$provider' is unavailable on the host." >&2
+    echo "Install it or ensure it is available on the host PATH." >&2
+    exit 1
+  fi
+
+  shopt -s nullglob
+  active_tasks=(work/active/TASK-*/task.md)
+  shopt -u nullglob
+
+  if [ "${#active_tasks[@]}" -eq 0 ]; then
+    echo "work: No active task was found in work/active." >&2
+    exit 1
+  fi
+
+  if [ "${#active_tasks[@]}" -gt 1 ]; then
+    echo "work: More than one active task was found:" >&2
+    printf '  %s\n' "${active_tasks[@]}" >&2
+    exit 1
+  fi
+
+  task="${active_tasks[0]}"
+  prompt="Implement the active task in ${task}.
+
+Follow the repository instructions in AGENTS.md.
+Use .work/templates/implementation.md for the implementation report.
+Do not move the task to work/completed.
+Run make verify before finishing."
+
+  echo "Provider: $provider"
+  echo "Task: $task"
+  echo "Mode: interactive"
+
+  exec "$provider" "$prompt"
+fi
+
 docker_args=(
   run
   --rm
