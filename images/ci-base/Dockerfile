@@ -12,6 +12,7 @@ RUN apk add --no-cache \
       ca-certificates \
       git \
       github-cli \
+      make \
       openssh-client \
       tar \
     && update-ca-certificates
