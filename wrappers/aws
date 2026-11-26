@@ -15,7 +15,13 @@ if [[ -n "${AWS_CONFIG_FILE:-}" && "${AWS_CONFIG_FILE}" == "${DXAWS_DIR}"/* ]]; 
   AWS_CONFIG_FILE="${CONTAINER_DXAWS_DIR}${AWS_CONFIG_FILE#${DXAWS_DIR}}"
 fi
 
-docker run --rm -it \
+# Captured output (for example dx update) must not allocate a terminal.
+aws_tty_args=()
+if [[ -t 0 && -t 1 ]]; then
+  aws_tty_args=(-t)
+fi
+
+docker run --rm -i "${aws_tty_args[@]}" \
   -u "$(id -u):$(id -g)" \
   -e AWS_PROFILE \
   -e AWS_DEFAULT_REGION \
@@ -23,8 +29,9 @@ docker run --rm -it \
   -e AWS_SHARED_CREDENTIALS_FILE \
   -e AWS_CONFIG_FILE \
   -e DXAWS_DIR \
+  -e AWS_PAGER="" \
   -v "${DXAWS_DIR}:${CONTAINER_DXAWS_DIR}:ro" \
   -v "$PWD:/work" \
   -w /work \
-  @@AWS_IMAGE@@ \
+  wyllie/aws-cli:awscli2.34.63-alpine3.24.1-1 \
   aws "$@"
